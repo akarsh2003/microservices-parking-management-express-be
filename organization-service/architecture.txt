@@ -1,0 +1,78 @@
+
+📁 Folder Structure
+
+parking-management-backend/
+│
+├── booking-service/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── models/
+│   │   ├── services/
+│   │   ├── kafka/
+│   │   │   ├── producer.js
+│   │   │   └── consumer.js
+│   │   └── index.js
+│   ├── .env
+│   ├── Dockerfile
+│   └── package.json
+│
+├── organization-service/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── models/
+│   │   ├── services/
+│   │   ├── kafka/
+│   │   └── index.js
+│   ├── .env
+│   ├── Dockerfile
+│   └── package.json
+│
+├── user-service/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── models/
+│   │   ├── services/
+│   │   ├── kafka/
+│   │   └── index.js
+│   ├── .env
+│   ├── Dockerfile
+│   └── package.json
+│
+├── admin-service/
+│   └── ... (similar structure)
+│
+├── payment-service/
+│   └── ... (similar structure)
+│
+├── gateway/
+│   ├── src/
+│   │   ├── routes/
+│   │   ├── middleware/
+│   │   └── index.js
+│   ├── .env
+│   ├── Dockerfile
+│   └── package.json
+│
+├── shared-libs/
+│   ├── auth/              # Common JWT logic
+│   ├── kafka/             # Kafka setup utility
+│   ├── logger/            # Winston logger
+│   └── utils/             # Common helpers
+│
+├── docker-compose.yml     # Spins up Kafka, Zookeeper, MongoDB, services
+├── README.md
+└── .gitignore
+
+
+📦 Services You’ll Build: 
+Service	Responsibility
+
+user-service	      : Handles user registration, vehicles, wallet
+organization-service  : Manages orgs, parking slots, pricing
+booking-service	      : Finds, books, and releases slots
+admin-service	      : Approves orgs, views analytics
+payment-service	      : Wallet top-ups, deductions, transactions
+gateway	              : API Gateway with JWT authentication

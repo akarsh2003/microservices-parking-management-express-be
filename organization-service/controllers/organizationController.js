@@ -1,0 +1,158 @@
+const Organization = require('../models/organizationModel');
+const Slot = require('../models/slotModel');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { sendSlotEvent } = require('../kafka/producer');
+
+const JWT_SECRET = 'yourSecretKey';
+
+exports.registerOrganization = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const existing = await Organization.findOne({ email });
+    if (existing) return res.status(400).json({ message: 'Email already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const org = new Organization({ name, email, password: hashedPassword });
+    await org.save();
+
+    res.status(201).json({ message: 'Organization registered. Awaiting approval.' });
+  } catch (err) {
+    console.error('Register Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.loginOrganization = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const org = await Organization.findOne({ email });
+    if (!org || !(await bcrypt.compare(password, org.password)))
+      return res.status(401).json({ message: 'Invalid credentials' });
+
+    // if (!org.approved) return res.status(403).json({ message: 'Not approved yet' });
+
+    const token = jwt.sign(
+      {
+        orgId: org._id,
+        role: org.role
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    res.json({ token });
+  } catch (err) {
+    console.error('Login Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get letter from level (1 = A, 2 = B, etc.)
+const getLevelLetter = (level) => {
+  return String.fromCharCode(64 + level);
+};
+
+exports.createSlot = async (req, res) => {
+  try {
+    const {
+      organizationId,
+      level,               // number (e.g., 1, 2, 3)
+      type,
+      location,
+      hourlyRate,
+      count = 1           // default to 1 if not provided
+    } = req.body;
+
+    const levelLetter = getLevelLetter(level);
+
+    // Find existing slots to continue numbering
+    const existing = await Slot.find({ organizationId, level });
+    let startIndex = existing.length + 1;
+
+    const newSlots = [];
+
+    for (let i = 0; i < count; i++) {
+      const slotNumber = `${levelLetter}${startIndex + i}`;
+
+      const slot = new Slot({
+        organizationId,
+        level,
+        slotNumber,
+        type,
+        location,
+        hourlyRate
+      });
+
+      await slot.save();
+      await sendSlotEvent('slot.created', {
+        slotId: slot._id,
+        organizationId,
+        level,
+        slotNumber,
+        type,
+        location,
+        hourlyRate
+      });
+
+      newSlots.push(slot);
+    }
+
+    res.status(201).json({ message: `${newSlots.length} slots created`, slots: newSlots });
+  } catch (err) {
+    console.error('Create Slot Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.getAllSlots = async (req, res) => {
+  try {
+    const { organizationId } = req.query;
+    const slots = await Slot.find({ organizationId });
+    res.json(slots);
+  } catch (err) {
+    console.error('Get All Slots Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.updateSlot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updated = await Slot.findByIdAndUpdate(id, req.body, { new: true });
+
+    if (updated) {
+      await sendSlotEvent('slot.updated', {
+        slotId: updated._id,
+        organizationId: updated.organizationId,
+        type: updated.type,
+        location: updated.location,
+        hourlyRate: updated.hourlyRate,
+        status: updated.status || 'available',
+      });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('Update Slot Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.deleteSlot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedSlot = await Slot.findByIdAndDelete(id);
+
+    if (deletedSlot) {
+      await sendSlotEvent('slot.deleted', {
+        slotId: deletedSlot._id,
+        organizationId: deletedSlot.organizationId,
+      });
+    }
+
+    res.json({ message: 'Slot deleted' });
+  } catch (err) {
+    console.error('Delete Slot Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
