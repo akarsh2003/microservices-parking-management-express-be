@@ -1,23 +1,21 @@
 import jwt from 'jsonwebtoken';
 import Admin from '../models/admin.js';
-import Organization from '../models/organization.js';
+import organization from '../../organization-service/models/organizationModel.js';
 import dotenv from 'dotenv';
 dotenv.config();
+import axios from 'axios';
 
 // Register Admin
 export const registerAdmin = async (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password) {
     return res.status(400).json({ message: 'Username and password are required' });
   }
-
   try {
     const existingAdmin = await Admin.findOne({ username });
     if (existingAdmin) {
       return res.status(400).json({ message: 'Admin already exists' });
     }
-
     const newAdmin = new Admin({ username, password });
     await newAdmin.save();
     res.status(201).json({ message: 'Admin registered successfully' });
@@ -26,50 +24,58 @@ export const registerAdmin = async (req, res) => {
   }
 };
 
+
+
 // Login Admin
 export const loginAdmin = async (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password) {
     return res.status(400).json({ message: 'Username and password are required' });
   }
-
+  // Get credentials from .env file
+  const adminUsername = process.env.ADMIN_USERNAME;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  // Compare the provided username and password with the ones in .env
+  if (username !== adminUsername || password !== adminPassword) {
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
   try {
-    const admin = await Admin.findOne({ username });
-    if (!admin || !(await admin.comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
-    });
-
+    // Generate JWT token
+    const token = jwt.sign(
+      { username, role: 'admin' }, // Role can be 'admin' as per your use case
+      process.env.JWT_SECRET, {
+        expiresIn: '1h',
+      }
+    );
+    // Respond with the token
     res.status(200).json({ token });
   } catch (err) {
     res.status(500).json({ message: 'Error logging in admin', error: err });
   }
 };
 
+
+
 // Get Pending Organizations
 export const getPendingOrganizations = async (req, res) => {
   try {
-    const organizations = await Organization.find({ registrationStatus: 'pending' });
-    res.status(200).json(organizations);
+    const response = await axios.get('http://localhost:3001/api/organization/organizations');
+    res.status(200).json(response.data);
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching organizations', error: err });
+    res.status(500).json({ message: 'Error fetching organizations', error: err.message });
   }
 };
+
 
 // Approve Organization
 export const approveOrganization = async (req, res) => {
   const { id } = req.params;
-
   try {
-    const organization = await Organization.findById(id);
+    // Use the Organization model from the Organization Service
+    const organization = await organization.findById(id);
     if (!organization) {
       return res.status(404).json({ message: 'Organization not found' });
     }
-
     organization.registrationStatus = 'approved';
     organization.approvedBy = req.user.id;
 
@@ -80,12 +86,14 @@ export const approveOrganization = async (req, res) => {
   }
 };
 
+
 // Get Stats (Dummy Example)
 export const getStats = async (req, res) => {
   try {
-    const totalOrganizations = await Organization.countDocuments();
-    const approvedOrganizations = await Organization.countDocuments({ registrationStatus: 'approved' });
-    const pendingOrganizations = await Organization.countDocuments({ registrationStatus: 'pending' });
+    // Use the Organization model from the Organization Service
+    const totalOrganizations = await organization.countDocuments();
+    const approvedOrganizations = await organization.countDocuments({ registrationStatus: 'approved' });
+    const pendingOrganizations = await organization.countDocuments({ registrationStatus: 'pending' });
 
     res.status(200).json({
       totalOrganizations,
@@ -96,3 +104,4 @@ export const getStats = async (req, res) => {
     res.status(500).json({ message: 'Error fetching stats', error: err });
   }
 };
+
