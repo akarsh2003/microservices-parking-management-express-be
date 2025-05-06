@@ -168,17 +168,24 @@ exports.getAllOrganizations = async (req, res) => {
 };
 
 
+// organization-service/controllers/organizationController.js
+
 exports.approveOrganization = async (req, res) => {
   try {
     const { id } = req.params;
-    const organization = await Organization.findById(id);
-    if (!organization) {
+    const { approvedBy } = req.body;
+
+    const org = await Organization.findById(id);
+    if (!org) {
       return res.status(404).json({ message: 'Organization not found' });
     }
-    organization.approved = true;
-    await organization.save();
-    res.status(200).json({ message: 'Organization approved successfully' });
+
+    org.approved = true;
+    org.approvedBy = approvedBy;
+    await org.save();
+
+    res.status(200).json({ message: 'Organization approved', organization: org });
   } catch (err) {
-    res.status(500).json({ message: 'Error approving organization', error: err.message });
+    res.status(500).json({ message: 'Failed to approve organization', error: err });
   }
 };

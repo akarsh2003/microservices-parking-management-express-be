@@ -3,7 +3,7 @@ import * as controller from '../controllers/bookingController.js';
 
 const router = express.Router();
 
-router.post('/', controller.createBooking);
+router.post('/book', controller.createBooking);
 router.post('/exit/:id', controller.exitBooking);
 router.get('/user/:userId', controller.getUserBookings);
 
