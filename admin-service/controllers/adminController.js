@@ -71,20 +71,23 @@ export const getPendingOrganizations = async (req, res) => {
 export const approveOrganization = async (req, res) => {
   const { id } = req.params;
   try {
-    // Use the Organization model from the Organization Service
-    const organization = await organization.findById(id);
-    if (!organization) {
-      return res.status(404).json({ message: 'Organization not found' });
-    }
-    organization.registrationStatus = 'approved';
-    organization.approvedBy = req.user.id;
+    const response = await axios.put(
+      `http://localhost:3001/api/organization/organizations/approve/${id}`,
+      {
+        approvedBy: req.user.id
+      }
+    );
 
-    await organization.save();
-    res.status(200).json({ message: 'Organization approved successfully' });
+    res.status(200).json({
+      message: 'Organization approved successfully',
+      data: response.data
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Error approving organization', error: err });
+    console.error('Approval error:', err.message);
+    res.status(500).json({ message: 'Error approving organization', error: err.message });
   }
 };
+
 
 
 // Get Stats (Dummy Example)
