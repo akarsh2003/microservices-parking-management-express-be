@@ -168,7 +168,7 @@ exports.getAllOrganizations = async (req, res) => {
 };
 
 
-export const approveOrganization = async (req, res) => {
+exports.approveOrganization = async (req, res) => {
   try {
     const { id } = req.params;
     const organization = await Organization.findById(id);
