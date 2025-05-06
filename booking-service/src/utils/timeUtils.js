@@ -1,5 +1,4 @@
-exports.calculateHours = (entryTime, exitTime) => {
-    const diffMs = exitTime - entryTime;
-    return Math.ceil(diffMs / (1000 * 60 * 60)); // round up to next hour
-  };
-  
+export const calculateHours = (entry, exit) => {
+  const ms = new Date(exit) - new Date(entry);
+  return Math.max(1, Math.ceil(ms / (1000 * 60 * 60)));
+};

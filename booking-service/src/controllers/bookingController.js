@@ -1,6 +1,6 @@
-const bookingService = require('../services/bookingService');
+import * as bookingService from '../services/bookingService.js';
 
-exports.createBooking = async (req, res) => {
+export const createBooking = async (req, res) => {
   try {
     const booking = await bookingService.createBooking(req.body);
     res.status(201).json({ message: 'Slot booked successfully', booking });
@@ -9,7 +9,7 @@ exports.createBooking = async (req, res) => {
   }
 };
 
-exports.exitBooking = async (req, res) => {
+export const exitBooking = async (req, res) => {
   try {
     const { booking, totalCharge } = await bookingService.completeBooking(req.params.id);
     res.json({ message: 'Exit successful', totalCharge, booking });
@@ -18,7 +18,7 @@ exports.exitBooking = async (req, res) => {
   }
 };
 
-exports.getUserBookings = async (req, res) => {
+export const getUserBookings = async (req, res) => {
   try {
     const bookings = await bookingService.getBookingsByUser(req.params.userId);
     res.json(bookings);

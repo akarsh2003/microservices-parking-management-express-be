@@ -1,45 +1,39 @@
-const Booking = require('../models/bookingModel');
-const { calculateHours } = require('../utils/timeUtils');
-const axios = require('axios');
+import axios from 'axios';
+import Booking from '../models/bookingModel.js';
+import { calculateHours } from '../utils/timeUtils.js';
 
-const HOURLY_RATE = {
-  car: 20,
-  bike: 10,
+export const createBooking = async ({ userId, orgId, slotId, vehicleType }) => {
+  return await Booking.create({ userId, orgId, slotId, vehicleType });
 };
 
-exports.createBooking = async ({ userId, slotId, vehicleType }) => {
-  const booking = await Booking.create({ userId, slotId, vehicleType });
-  return booking;
-};
-
-exports.completeBooking = async (bookingId) => {
+export const completeBooking = async (bookingId) => {
   const booking = await Booking.findById(bookingId);
   if (!booking || booking.status === 'COMPLETED') {
-    throw new Error('Booking not found or already completed');
+    throw new Error('Booking not found or already exited');
   }
 
-  booking.exitTime = new Date();
-  const hours = calculateHours(booking.entryTime, booking.exitTime);
-  const rateRes = await axios.get(
-    `${process.env.ORG_SERVICE_URL}/api/orgs/${booking.orgId}/rate/${booking.vehicleType}`
-  );
-  
-  if (!rateRes.data?.rate) {
-    throw new Error('Rate not found from organization service');
-  }
-  
-  const rate = rateRes.data.rate;
+  // 1. Calculate duration
+  const exitTime = new Date();
+  const hours = calculateHours(booking.entryTime, exitTime);
+
+  // 2. Fetch hourly rate from org-service
+  const slotRes = await axios.get(`${process.env.ORG_SERVICE_URL}/api/slot/${booking.slotId}`);
+  const rate = slotRes.data?.hourlyRate;
+
+  if (!rate) throw new Error('Hourly rate not found for slot');
 
   const totalCharge = hours * rate;
 
-  // Deduct wallet from user-service
+  // 3. Deduct from wallet
   await axios.post(`${process.env.USER_SERVICE_URL}/api/wallet/internal-deduct`, {
     userId: booking.userId,
     amount: totalCharge,
-    description: `Booking ID: ${booking._id}`,
+    description: `Slot booking (${hours}h @ ${rate}/h)`,
     internalKey: process.env.INTERNAL_SECRET_KEY
   });
 
+  // 4. Update booking
+  booking.exitTime = exitTime;
   booking.totalCharge = totalCharge;
   booking.status = 'COMPLETED';
   await booking.save();
@@ -47,6 +41,6 @@ exports.completeBooking = async (bookingId) => {
   return { booking, totalCharge };
 };
 
-exports.getBookingsByUser = async (userId) => {
+export const getBookingsByUser = async (userId) => {
   return await Booking.find({ userId }).sort({ entryTime: -1 });
 };
