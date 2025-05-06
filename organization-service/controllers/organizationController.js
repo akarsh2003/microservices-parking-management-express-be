@@ -16,7 +16,7 @@ exports.registerOrganization = async (req, res) => {
     const org = new Organization({ name, email, password: hashedPassword });
     await org.save();
 
-    res.status(201).json({ message: 'Organization registered. Awaiting approval.' });
+    res.status(201).json({ message: 'Organization registered. Awaiting approval.' , organization: org});
   } catch (err) {
     console.error('Register Error:', err);
     res.status(500).json({ message: 'Internal server error' });
