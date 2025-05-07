@@ -8,12 +8,12 @@ const JWT_SECRET = 'yourSecretKey';
 
 exports.registerOrganization = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, location } = req.body;
     const existing = await Organization.findOne({ email });
     if (existing) return res.status(400).json({ message: 'Email already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const org = new Organization({ name, email, password: hashedPassword });
+    const org = new Organization({ name, email, password: hashedPassword, location });
     await org.save();
 
     res.status(201).json({ message: 'Organization registered. Awaiting approval.' , organization: org});
@@ -29,9 +29,7 @@ exports.loginOrganization = async (req, res) => {
     const org = await Organization.findOne({ email });
     if (!org || !(await bcrypt.compare(password, org.password)))
       return res.status(401).json({ message: 'Invalid credentials' });
-
     if (!org.approved) return res.status(403).json({ message: 'Not approved yet' });
-
     const token = jwt.sign(
       {
         orgId: org._id,
@@ -52,46 +50,23 @@ const getLevelLetter = (level) => {
   return String.fromCharCode(64 + level);
 };
 
+
+
 exports.createSlot = async (req, res) => {
   try {
-    const {
-      organizationId,
-      level,
-      type,
-      location,
-      hourlyRate,
-      count = 1
-    } = req.body;
-
+    const { organizationId, level, type, hourlyRate, count = 1 } = req.body;
     const levelLetter = getLevelLetter(level);
-
     // Get the next slot number based on existing slots
     const existing = await Slot.find({ organizationId, level });
     let startIndex = existing.length + 1;
     const newSlots = [];
     for (let i = 0; i < count; i++) {
       const slotNumber = `${levelLetter}${startIndex + i}`;
-      const slot = new Slot({
-        organizationId,
-        level,
-        slotNumber,
-        type,
-        location,
-        hourlyRate
-      });
+      const slot = new Slot({ organizationId, level, slotNumber, type, hourlyRate });
       await slot.save();
-      await sendSlotEvent('slot.created', {
-        slotId: slot._id,
-        organizationId,
-        level,
-        slotNumber,
-        type,
-        location,
-        hourlyRate
-      });
+      await sendSlotEvent('slot.created', { slotId: slot._id, organizationId, level, slotNumber, type, hourlyRate });
       newSlots.push(slot);
     }
-
     // Respond only with the array of created slots
     res.status(201).json(newSlots);
   } catch (err) {
@@ -99,6 +74,9 @@ exports.createSlot = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+
+
 
 exports.getAllSlots = async (req, res) => {
   try {
@@ -138,7 +116,6 @@ exports.deleteSlot = async (req, res) => {
   try {
     const { id } = req.params;
     const deletedSlot = await Slot.findByIdAndDelete(id);
-
     if (deletedSlot) {
       await sendSlotEvent('slot.deleted', {
         slotId: deletedSlot._id,
@@ -200,7 +177,7 @@ exports.rejectOrganization = async (req, res) => {
 };
 
 
-export const getAvailableSlots = async (req, res) => {
+exports.getAvailableSlots = async (req, res) => {
   try {
     const slots = await Slot.find({ isBooked: false });
     res.json(slots);
@@ -211,7 +188,7 @@ export const getAvailableSlots = async (req, res) => {
 
 
 // PATCH /api/slots/:id/book
-export const markSlotAsBooked = async (req, res) => {
+exports.markSlotAsBooked = async (req, res) => {
   try {
     const slot = await Slot.findByIdAndUpdate(req.params.id, { isBooked: true }, { new: true });
     res.json(slot);
@@ -223,7 +200,7 @@ export const markSlotAsBooked = async (req, res) => {
 
 
 //register organization and set approved to true
-export const registerOrganizationByAdmin = async (req, res) => {
+exports.registerOrganizationByAdmin = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const existing = await Organization.findOne({ email });
