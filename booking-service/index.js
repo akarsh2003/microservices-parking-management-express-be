@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const app = express();
 
 app.use(express.json());
-app.use('/api/bookings', require('./routes/bookingRoutes'));
+app.use('/api/bookings', require('./src/routes/bookingRoutes'));
 
 const PORT = process.env.PORT || 4002;
 
