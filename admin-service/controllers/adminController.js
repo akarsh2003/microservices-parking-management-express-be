@@ -89,6 +89,20 @@ export const approveOrganization = async (req, res) => {
 };
 
 
+// Reject Organization
+export const rejectOrganization = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const response = await axios.put(`http://localhost:3001/api/organization/organizations/reject/${id}`);
+    res.status(200).json({
+      message: 'Organization rejected successfully',
+      data: response.data
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Error rejecting organization', error: err.message });
+  }
+};
+
 
 // Get Stats (Dummy Example)
 export const getStats = async (req, res) => {

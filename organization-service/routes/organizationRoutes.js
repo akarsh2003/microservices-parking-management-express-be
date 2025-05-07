@@ -15,5 +15,6 @@ router.put('/slots/:id', auth, rolecheck('organization'), controller.updateSlot)
 router.delete('/slots/:id', auth, rolecheck('organization'), controller.deleteSlot);
 router.get('/organizations', controller.getAllOrganizations);//admin only
 router.put('/organizations/approve/:id', controller.approveOrganization);//admin only
+router.put('/organizations/reject/:id', controller.rejectOrganization);
 
 module.exports = router;

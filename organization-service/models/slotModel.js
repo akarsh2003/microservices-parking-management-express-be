@@ -41,3 +41,23 @@ const SlotSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Slot', SlotSchema);
+// {
+//   orgId:"",
+//   parking:{
+//     bike:{
+//       hourlyRate:"",
+//       numberOfSlots:12,
+//       slots:[[
+//         {
+//           slotsId:"",
+//           status:"",
+//           vehicleNumer:""
+//         }
+//       ],[]],
+//       //........
+//       //.....
+//       //............
+
+//     }
+//   }
+// }

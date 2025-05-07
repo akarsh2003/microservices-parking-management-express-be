@@ -30,7 +30,7 @@ exports.loginOrganization = async (req, res) => {
     if (!org || !(await bcrypt.compare(password, org.password)))
       return res.status(401).json({ message: 'Invalid credentials' });
 
-    // if (!org.approved) return res.status(403).json({ message: 'Not approved yet' });
+    if (!org.approved) return res.status(403).json({ message: 'Not approved yet' });
 
     const token = jwt.sign(
       {
@@ -56,24 +56,21 @@ exports.createSlot = async (req, res) => {
   try {
     const {
       organizationId,
-      level,               // number (e.g., 1, 2, 3)
+      level,
       type,
       location,
       hourlyRate,
-      count = 1           // default to 1 if not provided
+      count = 1
     } = req.body;
 
     const levelLetter = getLevelLetter(level);
 
-    // Find existing slots to continue numbering
+    // Get the next slot number based on existing slots
     const existing = await Slot.find({ organizationId, level });
     let startIndex = existing.length + 1;
-
     const newSlots = [];
-
     for (let i = 0; i < count; i++) {
       const slotNumber = `${levelLetter}${startIndex + i}`;
-
       const slot = new Slot({
         organizationId,
         level,
@@ -82,7 +79,6 @@ exports.createSlot = async (req, res) => {
         location,
         hourlyRate
       });
-
       await slot.save();
       await sendSlotEvent('slot.created', {
         slotId: slot._id,
@@ -93,11 +89,11 @@ exports.createSlot = async (req, res) => {
         location,
         hourlyRate
       });
-
       newSlots.push(slot);
     }
 
-    res.status(201).json({ message: `${newSlots.length} slots created`, slots: newSlots });
+    // Respond only with the array of created slots
+    res.status(201).json(newSlots);
   } catch (err) {
     console.error('Create Slot Error:', err);
     res.status(500).json({ message: 'Internal server error' });
@@ -159,7 +155,7 @@ exports.deleteSlot = async (req, res) => {
 //get all organizations
 exports.getAllOrganizations = async (req, res) => {
   try {
-    const organizations = await Organization.find({ approved: false });
+    const organizations = await Organization.find();
     res.json(organizations);
   } catch (err) {
     console.error('Get All Organizations Error:', err);
@@ -174,18 +170,31 @@ exports.approveOrganization = async (req, res) => {
   try {
     const { id } = req.params;
     const { approvedBy } = req.body;
-
     const org = await Organization.findById(id);
     if (!org) {
       return res.status(404).json({ message: 'Organization not found' });
     }
-
     org.approved = true;
     org.approvedBy = approvedBy;
     await org.save();
-
     res.status(200).json({ message: 'Organization approved', organization: org });
   } catch (err) {
     res.status(500).json({ message: 'Failed to approve organization', error: err });
+  }
+};
+
+//reject the organization
+exports.rejectOrganization = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const org = await Organization.findById(id);
+    if (!org) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+    org.approved = false;
+    await org.deleteOne();
+    res.status(200).json({ message: 'Organization rejected', organization: org });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to reject organization', error: err });
   }
 };

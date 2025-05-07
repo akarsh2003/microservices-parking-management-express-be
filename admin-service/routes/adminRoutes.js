@@ -4,6 +4,7 @@ import {
   loginAdmin,
   getPendingOrganizations,
   approveOrganization,
+  rejectOrganization,
   getStats,
 } from '../controllers/adminController.js';
 import { verifyToken } from '../middlewares/auth.js';
@@ -17,7 +18,8 @@ router.post('/login', loginAdmin);
 
 // Protected (Admin only)
 router.get('/organizations', verifyToken, checkRole('admin'), getPendingOrganizations);
-router.put('/organizations/:id', verifyToken, checkRole('admin'), approveOrganization);
+router.put('/approve/:id', verifyToken, checkRole('admin'), approveOrganization);
+router.put('/reject/:id', verifyToken, checkRole('admin'), rejectOrganization);
 router.get('/stats', verifyToken, checkRole('admin'), getStats);
 
 export default router;
