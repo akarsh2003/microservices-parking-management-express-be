@@ -198,3 +198,44 @@ exports.rejectOrganization = async (req, res) => {
     res.status(500).json({ message: 'Failed to reject organization', error: err });
   }
 };
+
+
+export const getAvailableSlots = async (req, res) => {
+  try {
+    const slots = await Slot.find({ isBooked: false });
+    res.json(slots);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching available slots', error: err.message });
+  }
+};
+
+
+// PATCH /api/slots/:id/book
+export const markSlotAsBooked = async (req, res) => {
+  try {
+    const slot = await Slot.findByIdAndUpdate(req.params.id, { isBooked: true }, { new: true });
+    res.json(slot);
+  } catch (err) {
+    res.status(500).json({ message: 'Error booking slot', error: err.message });
+  }
+};
+
+
+
+//register organization and set approved to true
+export const registerOrganizationByAdmin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const existing = await Organization.findOne({ email });
+    if (existing) return res.status(400).json({ message: 'Email already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const org = new Organization({ name, email, password: hashedPassword, approved: true });
+    await org.save();
+
+    res.status(201).json({ message: 'Organization registered', organization: org});
+  } catch (err) {
+    console.error('Register Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

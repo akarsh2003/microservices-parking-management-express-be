@@ -6,6 +6,7 @@ import {
   approveOrganization,
   rejectOrganization,
   getStats,
+  registerOrganizationByAdmin
 } from '../controllers/adminController.js';
 import { verifyToken } from '../middlewares/auth.js';
 import { checkRole } from '../middlewares/role.js';
@@ -21,5 +22,6 @@ router.get('/organizations', verifyToken, checkRole('admin'), getPendingOrganiza
 router.put('/approve/:id', verifyToken, checkRole('admin'), approveOrganization);
 router.put('/reject/:id', verifyToken, checkRole('admin'), rejectOrganization);
 router.get('/stats', verifyToken, checkRole('admin'), getStats);
+router.post('/register-organization', verifyToken, checkRole('admin'), registerOrganizationByAdmin);
 
 export default router;

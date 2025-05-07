@@ -122,3 +122,22 @@ export const getStats = async (req, res) => {
   }
 };
 
+
+export const registerOrganizationByAdmin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const response = await axios.post('http://localhost:5002/api/organization/register/org', {
+      name,
+      email,
+      password
+    });
+    res.status(201).json({ message: 'Organization registered by admin', data: response.data });
+  } catch (err) {
+    console.error('Admin Registration Error:', err.message);
+    if (err.response) {
+      res.status(err.response.status).json({ message: err.response.data.message });
+    } else {
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+};
