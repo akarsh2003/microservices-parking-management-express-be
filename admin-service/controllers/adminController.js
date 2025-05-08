@@ -125,11 +125,12 @@ export const getStats = async (req, res) => {
 
 export const registerOrganizationByAdmin = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    const response = await axios.post('http://localhost:5002/api/organization/register/org', {
+    const { name, email, password, location } = req.body;
+    const response = await axios.post('http://localhost:3001/api/organization/register/org', {
       name,
       email,
-      password
+      password,
+      location
     });
     res.status(201).json({ message: 'Organization registered by admin', data: response.data });
   } catch (err) {

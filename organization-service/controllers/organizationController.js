@@ -229,12 +229,12 @@ exports.markSlotAsAvailable = async (req, res) => {
 //register organization and set approved to true
 exports.registerOrganizationByAdmin = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, location } = req.body;
     const existing = await Organization.findOne({ email });
     if (existing) return res.status(400).json({ message: 'Email already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const org = new Organization({ name, email, password: hashedPassword, approved: true });
+    const org = new Organization({ name, email, password: hashedPassword, location, approved: true });
     await org.save();
 
     res.status(201).json({ message: 'Organization registered', organization: org});
