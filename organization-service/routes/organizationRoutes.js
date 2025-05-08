@@ -18,7 +18,8 @@ router.get('/organizations', controller.getAllOrganizations);//admin only
 router.put('/organizations/approve/:id', controller.approveOrganization);//admin only
 router.put('/organizations/reject/:id', controller.rejectOrganization);//admin only
 
-router.patch('/slots/:id/book', controller.markSlotAsBooked);//user
 router.get('/slots/available', controller.getAvailableSlots);//user
+router.patch('/slots/:id/book', controller.markSlotAsBooked);//user
+router.patch('/slots/:id/exit', controller.markSlotAsAvailable);//user
 
 module.exports = router;

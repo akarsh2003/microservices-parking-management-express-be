@@ -38,6 +38,14 @@ const SlotSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  bookedAt: {
+    type: Date,
+    default: null,
+  },
+  bookedBy: {
+    type: String, // store userId as string (UUID or ObjectId from user-service)
+    default: null,
+  },
 });
 
 module.exports = mongoose.model('Slot', SlotSchema);

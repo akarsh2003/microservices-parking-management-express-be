@@ -190,10 +190,37 @@ exports.getAvailableSlots = async (req, res) => {
 // PATCH /api/slots/:id/book
 exports.markSlotAsBooked = async (req, res) => {
   try {
-    const slot = await Slot.findByIdAndUpdate(req.params.id, { isBooked: true }, { new: true });
-    res.json(slot);
+    const slot = await Slot.findById(req.params.id);
+    if (!slot) {
+      return res.status(404).json({ message: 'Slot not found' });
+    }
+    if (slot.status === 'occupied') {
+      return res.status(400).json({ message: 'Slot is already occupied' });
+    }
+    slot.status = 'occupied';
+    await slot.save();
+    res.json({ message: 'Slot marked as booked', slot });
   } catch (err) {
     res.status(500).json({ message: 'Error booking slot', error: err.message });
+  }
+};
+
+
+//mark slot as available
+exports.markSlotAsAvailable = async (req, res) => {
+  try {
+    const slot = await Slot.findById(req.params.id);
+    if (!slot) {
+      return res.status(404).json({ message: 'Slot not found' });
+    }
+    if (slot.status === 'available') {
+      return res.status(400).json({ message: 'Slot is already available' });
+    }
+    slot.status = 'available';
+    await slot.save();
+    res.json({ message: 'Slot marked as available', slot });
+  } catch (err) {
+    res.status(500).json({ message: 'Error marking slot as available', error: err.message });
   }
 };
 
