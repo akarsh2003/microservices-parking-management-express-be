@@ -55,20 +55,74 @@ const getLevelLetter = (level) => {
 exports.createSlot = async (req, res) => {
   try {
     const { organizationId, level, type, hourlyRate, count = 1 } = req.body;
-    const levelLetter = getLevelLetter(level);
-    // Get the next slot number based on existing slots
-    const existing = await Slot.find({ organizationId, level });
-    let startIndex = existing.length + 1;
-    const newSlots = [];
-    for (let i = 0; i < count; i++) {
-      const slotNumber = `${levelLetter}${startIndex + i}`;
-      const slot = new Slot({ organizationId, level, slotNumber, type, hourlyRate });
-      await slot.save();
-      await sendSlotEvent('slot.created', { slotId: slot._id, organizationId, level, slotNumber, type, hourlyRate });
-      newSlots.push(slot);
+    const levelLetter = getLevelLetter(level); // e.g., 1 → A, 2 → B
+
+    // Find existing slot structure for the organization
+    let slotDoc = await Slot.findOne({ organizationId });
+
+    // If no structure exists, create one
+    if (!slotDoc) {
+      slotDoc = new Slot({
+        organizationId,
+        hourlyRates: {
+          car: type === 'car' ? hourlyRate : 0,
+          bike: type === 'bike' ? hourlyRate : 0
+        },
+        carLevels: [],
+        bikeLevels: []
+      });
     }
-    // Respond only with the array of created slots
-    res.status(201).json(newSlots);
+
+    // Select the correct levels array and create identifier
+    const levelsArray = type === 'car' ? slotDoc.carLevels : slotDoc.bikeLevels;
+
+    // Try to find the level by its identifier
+    let levelEntry = levelsArray.find((l) => l.levelIdentifier === levelLetter);
+
+    // If level doesn't exist, create it
+    if (!levelEntry) {
+      levelEntry = {
+        levelIdentifier: levelLetter,
+        availableSlots: 0,
+        bookedSlots: 0,
+        slots: []
+      };
+      levelsArray.push(levelEntry);
+    }
+
+    // Calculate next slot number index
+    const existingCount = levelEntry.slots.length;
+    const newSlots = [];
+
+    for (let i = 0; i < count; i++) {
+      const slotNumber = `${levelLetter}-${existingCount + i + 1}`;
+
+      const newSlot = {
+        slotNumber,
+        status: 'available',
+        bookedBy: null,
+        vehicleNumber: null,
+        bookedAt: null
+      };
+
+      levelEntry.slots.push(newSlot);
+      levelEntry.availableSlots += 1;
+
+      // Optionally emit event
+      await sendSlotEvent('slot.created', {
+        organizationId,
+        slotNumber,
+        level: levelLetter,
+        type,
+        hourlyRate
+      });
+
+      newSlots.push(newSlot);
+    }
+
+    await slotDoc.save();
+
+    res.status(201).json({ message: `${count} ${type} slot(s) created`, slots: newSlots });
   } catch (err) {
     console.error('Create Slot Error:', err);
     res.status(500).json({ message: 'Internal server error' });
@@ -77,12 +131,17 @@ exports.createSlot = async (req, res) => {
 
 
 
-
 exports.getAllSlots = async (req, res) => {
   try {
-    const { organizationId } = req.query;
-    const slots = await Slot.find({ organizationId });
-    res.json(slots);
+    const organizationId = req.params.id;
+
+    const slotStructure = await Slot.findOne({ organizationId }).populate('organizationId');
+
+    if (!slotStructure) {
+      return res.status(404).json({ message: 'No slot structure found for this organization' });
+    }
+
+    res.status(200).json(slotStructure);
   } catch (err) {
     console.error('Get All Slots Error:', err);
     res.status(500).json({ message: 'Internal server error' });
@@ -91,21 +150,44 @@ exports.getAllSlots = async (req, res) => {
 
 exports.updateSlot = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updated = await Slot.findByIdAndUpdate(id, req.body, { new: true });
+    const { organizationId, type, levelIdentifier, slotNumber, updates } = req.body;
 
-    if (updated) {
-      await sendSlotEvent('slot.updated', {
-        slotId: updated._id,
-        organizationId: updated.organizationId,
-        type: updated.type,
-        location: updated.location,
-        hourlyRate: updated.hourlyRate,
-        status: updated.status || 'available',
-      });
+    const slotDoc = await Slot.findOne({ organizationId });
+    if (!slotDoc) {
+      return res.status(404).json({ message: 'Slot structure not found' });
     }
 
-    res.json(updated);
+    const levelsArray = type === 'car' ? slotDoc.carLevels : slotDoc.bikeLevels;
+    const level = levelsArray.find(l => l.levelIdentifier === levelIdentifier);
+    if (!level) {
+      return res.status(404).json({ message: 'Level not found' });
+    }
+
+    const slot = level.slots.find(s => s.slotNumber === slotNumber);
+    if (!slot) {
+      return res.status(404).json({ message: 'Slot not found' });
+    }
+
+    // Update fields
+    Object.assign(slot, updates);
+
+    // Recalculate slot counts
+    level.availableSlots = level.slots.filter(s => s.status === 'available').length;
+    level.bookedSlots = level.slots.filter(s => s.status === 'occupied').length;
+
+    await slotDoc.save();
+
+    await sendSlotEvent('slot.updated', {
+      slotNumber,
+      organizationId,
+      type,
+      level: levelIdentifier,
+      status: slot.status,
+      bookedBy: slot.bookedBy,
+      vehicleNumber: slot.vehicleNumber,
+    });
+
+    res.status(200).json({ message: 'Slot updated', updatedSlot: slot });
   } catch (err) {
     console.error('Update Slot Error:', err);
     res.status(500).json({ message: 'Internal server error' });
@@ -114,21 +196,46 @@ exports.updateSlot = async (req, res) => {
 
 exports.deleteSlot = async (req, res) => {
   try {
-    const { id } = req.params;
-    const deletedSlot = await Slot.findByIdAndDelete(id);
-    if (deletedSlot) {
-      await sendSlotEvent('slot.deleted', {
-        slotId: deletedSlot._id,
-        organizationId: deletedSlot.organizationId,
-      });
+    const { organizationId, type, levelIdentifier, slotNumber } = req.body;
+
+    const slotDoc = await Slot.findOne({ organizationId });
+    if (!slotDoc) {
+      return res.status(404).json({ message: 'Slot structure not found' });
     }
 
-    res.json({ message: 'Slot deleted' });
+    const levelsArray = type === 'car' ? slotDoc.carLevels : slotDoc.bikeLevels;
+    const level = levelsArray.find(l => l.levelIdentifier === levelIdentifier);
+    if (!level) {
+      return res.status(404).json({ message: 'Level not found' });
+    }
+
+    const slotIndex = level.slots.findIndex(s => s.slotNumber === slotNumber);
+    if (slotIndex === -1) {
+      return res.status(404).json({ message: 'Slot not found' });
+    }
+
+    const [removedSlot] = level.slots.splice(slotIndex, 1);
+
+    // Recalculate counts
+    level.availableSlots = level.slots.filter(s => s.status === 'available').length;
+    level.bookedSlots = level.slots.filter(s => s.status === 'occupied').length;
+
+    await slotDoc.save();
+
+    await sendSlotEvent('slot.deleted', {
+      organizationId,
+      slotNumber,
+      type,
+      level: levelIdentifier
+    });
+
+    res.json({ message: 'Slot deleted', deletedSlot: removedSlot });
   } catch (err) {
     console.error('Delete Slot Error:', err);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 //get all organizations
 exports.getAllOrganizations = async (req, res) => {
   try {
@@ -187,43 +294,115 @@ exports.getAvailableSlots = async (req, res) => {
 };
 
 
-// PATCH /api/slots/:id/book
+// PATCH /api/slots/book
+
 exports.markSlotAsBooked = async (req, res) => {
   try {
-    const slot = await Slot.findById(req.params.id);
-    if (!slot) {
-      return res.status(404).json({ message: 'Slot not found' });
+    const { organizationId, type, levelIdentifier, slotNumber, bookedBy, vehicleNumber } = req.body;
+
+    const slotDoc = await Slot.findOne({ organizationId });
+    if (!slotDoc) {
+      return res.status(404).json({ message: 'Slot structure not found' });
     }
-    if (slot.status === 'occupied') {
-      return res.status(400).json({ message: 'Slot is already occupied' });
+
+    const levelsArray = type === 'car' ? slotDoc.carLevels : slotDoc.bikeLevels;
+    const level = levelsArray.find(l => l.levelIdentifier === levelIdentifier);
+    if (!level) {
+      return res.status(404).json({ message: 'Level not found' });
     }
-    slot.status = 'occupied';
-    await slot.save();
-    res.json({ message: 'Slot marked as booked', slot });
+
+    let targetSlot;
+
+    if (slotNumber) {
+      // Booking a specific slot
+      targetSlot = level.slots.find(s => s.slotNumber === slotNumber);
+      if (!targetSlot) {
+        return res.status(404).json({ message: 'Slot not found' });
+      }
+      if (targetSlot.status === 'occupied') {
+        return res.status(400).json({ message: 'Slot is already occupied' });
+      }
+    } else {
+      // Auto-book the first available slot
+      const availableSlots = level.slots
+        .filter(s => s.status === 'available')
+        .sort((a, b) => {
+          // Sort by slot number: e.g., "C1-2" before "C1-10"
+          const aNum = parseInt(a.slotNumber.split('-')[1], 10);
+          const bNum = parseInt(b.slotNumber.split('-')[1], 10);
+          return aNum - bNum;
+        });
+
+      if (availableSlots.length === 0) {
+        return res.status(400).json({ message: 'No available slots in this level' });
+      }
+
+      targetSlot = availableSlots[0];
+    }
+
+    // Mark as booked
+    targetSlot.status = 'occupied';
+    targetSlot.bookedBy = bookedBy || null;
+    targetSlot.vehicleNumber = vehicleNumber || null;
+    targetSlot.bookedAt = new Date();
+
+    // Update count
+    level.availableSlots = level.slots.filter(s => s.status === 'available').length;
+    level.bookedSlots = level.slots.filter(s => s.status === 'occupied').length;
+
+    await slotDoc.save();
+
+    res.status(200).json({ message: 'Slot booked successfully', bookedSlot: targetSlot });
   } catch (err) {
-    res.status(500).json({ message: 'Error booking slot', error: err.message });
+    console.error('Error booking slot:', err);
+    res.status(500).json({ message: 'Internal server error', error: err.message });
   }
 };
 
-
 //mark slot as available
+
 exports.markSlotAsAvailable = async (req, res) => {
   try {
-    const slot = await Slot.findById(req.params.id);
+    const { organizationId, type, levelIdentifier, slotNumber } = req.body;
+
+    const slotDoc = await Slot.findOne({ organizationId });
+    if (!slotDoc) {
+      return res.status(404).json({ message: 'Slot structure not found' });
+    }
+
+    const levelsArray = type === 'car' ? slotDoc.carLevels : slotDoc.bikeLevels;
+    const level = levelsArray.find(l => l.levelIdentifier === levelIdentifier);
+    if (!level) {
+      return res.status(404).json({ message: 'Level not found' });
+    }
+
+    const slot = level.slots.find(s => s.slotNumber === slotNumber);
     if (!slot) {
       return res.status(404).json({ message: 'Slot not found' });
     }
+
     if (slot.status === 'available') {
       return res.status(400).json({ message: 'Slot is already available' });
     }
+
+    // Mark the slot as available
     slot.status = 'available';
-    await slot.save();
-    res.json({ message: 'Slot marked as available', slot });
+    slot.bookedBy = null;
+    slot.vehicleNumber = null;
+    slot.bookedAt = null;
+
+    // Recalculate counts
+    level.availableSlots = level.slots.filter(s => s.status === 'available').length;
+    level.bookedSlots = level.slots.filter(s => s.status === 'occupied').length;
+
+    await slotDoc.save();
+
+    res.json({ message: 'Slot marked as available', updatedSlot: slot });
   } catch (err) {
-    res.status(500).json({ message: 'Error marking slot as available', error: err.message });
+    console.error('Error marking slot as available:', err);
+    res.status(500).json({ message: 'Internal server error', error: err.message });
   }
 };
-
 
 
 //register organization and set approved to true
