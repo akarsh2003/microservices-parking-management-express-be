@@ -21,5 +21,7 @@ router.put('/organizations/reject/:id', controller.rejectOrganization);//admin o
 router.get('/slots/available', controller.getAvailableSlots);//user
 router.patch('/slots/book', controller.markSlotAsBooked);//user
 router.patch('/slots/exit',  controller.markSlotAsAvailable);//user
+router.get('/org', controller.getAllOrganizationsForUser);//user
+router.get('/slots/:id', controller.getAvailableSlotsByOrgId);
 
 module.exports = router;

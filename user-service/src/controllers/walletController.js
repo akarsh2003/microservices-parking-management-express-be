@@ -11,9 +11,7 @@ exports.addMoney = async (req, res) => {
   const user = await User.findById(req.userId);
   user.wallet.balance += amount;
   await user.save();
-
   await Transaction.create({ userId: user._id, type: 'CREDIT', amount, description: 'Wallet top-up' });
-
   res.json({ message: 'Money added', balance: user.wallet.balance });
 };
 

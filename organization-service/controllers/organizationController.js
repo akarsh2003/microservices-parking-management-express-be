@@ -422,3 +422,27 @@ exports.registerOrganizationByAdmin = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+
+exports.getAllOrganizationsForUser = async (req, res) => {
+  try {
+    const organizations = await Organization.find({approved : true});
+    res.json(organizations);
+  } catch (err) {
+    console.error('Get All Organizations Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
+//get available slots for users
+exports.getAvailableSlotsByOrgId = async (req, res) => {
+  try {
+    const { id } = req.params; // organizationId from the route
+    const slots = await Slot.find({ organizationId: id, status: 'available' });
+    res.json(slots);
+  } catch (err) {
+    console.error('Error fetching available slots by organization:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
