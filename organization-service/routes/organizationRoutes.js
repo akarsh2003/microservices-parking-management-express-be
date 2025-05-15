@@ -12,6 +12,8 @@ router.post('/register/org', controller.registerOrganizationByAdmin);//admin onl
 // Parking slot management
 router.post('/slots', auth, rolecheck('organization'), controller.createSlot);
 router.get('/slots/:id', auth, rolecheck('organization'), controller.getAllSlots);
+router.post('/slots/rates/:id', auth, rolecheck('organization'), controller.setSlotRates);
+router.get('/slots/rates/:id', auth, rolecheck('organization'), controller.getSlotRates);
 router.put('/slots/:id', auth, rolecheck('organization'), controller.updateSlot);
 router.delete('/slots/:id', auth, rolecheck('organization'), controller.deleteSlot);
 router.get('/organizations', controller.getAllOrganizations);//admin only
@@ -20,8 +22,10 @@ router.put('/organizations/reject/:id', controller.rejectOrganization);//admin o
 
 router.get('/slots/available', controller.getAvailableSlots);//user
 router.patch('/slots/book', controller.markSlotAsBooked);//user
-router.patch('/slots/exit',  controller.markSlotAsAvailable);//user
+router.patch('/slots/exit', controller.markSlotAsAvailable);//user
 router.get('/org', controller.getAllOrganizationsForUser);//user
 router.get('/slots/:id', controller.getAvailableSlotsByOrgId);
+
+router.delete('/slots/:orgId/levels/:levelType/:level', controller.deleteLevel);
 
 module.exports = router;
