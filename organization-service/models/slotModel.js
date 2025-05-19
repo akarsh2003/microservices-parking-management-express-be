@@ -9,8 +9,8 @@ const SlotSchema = new mongoose.Schema({
   },
 
   hourlyRates: {
-    car: { type: Number, required: true },
-    bike: { type: Number, required: true }
+    car: { type: Number, required: true, default:0 },
+    bike: { type: Number, required: true,default:0 }
   },
 
   carLevels: [
