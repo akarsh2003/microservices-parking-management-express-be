@@ -656,16 +656,102 @@ exports.rejectOrganization = async (req, res) => {
   }
 };
 
+// src/controllers/organizationController.js 
 
 exports.getAvailableSlots = async (req, res) => {
   try {
-    const slots = await Slot.find({ isBooked: false });
-    res.json(slots);
+    const { orgId } = req.params;                // ← orgId in the URL
+    const { type, levelIdentifier } = req.query; // type and optional levelIdentifier in query
+
+    // 1) Validate
+    if (!orgId) {
+      return res.status(400).json({ message: 'orgId parameter is required' });
+    }
+    if (!['car', 'bike'].includes(type)) {
+      return res.status(400).json({ message: 'type query must be "car" or "bike"' });
+    }
+
+    // 2) Load the slot‐config document for this org
+    const slotDoc = await Slot.findOne({ organizationId: orgId });
+    if (!slotDoc) {
+      return res.status(404).json({ message: 'No slot configuration found for this organization' });
+    }
+
+    // 3) Pick the correct levels array
+    const levels = type === 'car' ? slotDoc.carLevels : slotDoc.bikeLevels;
+
+    // 4) Optionally filter to a single level
+    const targetLevels = levelIdentifier
+      ? levels.filter((l) => l.levelIdentifier === levelIdentifier)
+      : levels;
+
+    // 5) Flatten & return only the available slots
+    const available = targetLevels.flatMap((level) =>
+      level.slots
+        .filter((s) => s.status === 'available')
+        .map((s) => ({
+          levelIdentifier: level.levelIdentifier,
+          slotNumber:      s.slotNumber
+        }))
+    );
+
+    return res.json(available);
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching available slots', error: err.message });
+    console.error('getAvailableSlots error:', err);
+    return res
+      .status(500)
+      .json({ message: 'Error fetching available slots', error: err.message });
   }
 };
 
+exports.getAllSlots = async (req, res) => {
+  try {
+    const { orgId } = req.params; // orgId in the URL
+
+    // 1) Validate
+    if (!orgId) {
+      return res.status(400).json({ message: 'orgId parameter is required' });
+    }
+
+    // 2) Load the slot‐config document for this org
+    const slotDoc = await Slot.findOne({ organizationId: orgId });
+    if (!slotDoc) {
+      return res.status(404).json({ message: 'No slot configuration found for this organization' });
+    }
+
+    // 3) Flatten all car slots
+    const carSlots = slotDoc.carLevels.flatMap((level) =>
+      level.slots.map((s) => ({
+        levelIdentifier: level.levelIdentifier,
+        slotNumber:      s.slotNumber,
+        status:          s.status,
+        bookedBy:        s.bookedBy,
+        vehicleNumber:   s.vehicleNumber,
+        bookedAt:        s.bookedAt
+      }))
+    );
+
+    // 4) Flatten all bike slots
+    const bikeSlots = slotDoc.bikeLevels.flatMap((level) =>
+      level.slots.map((s) => ({
+        levelIdentifier: level.levelIdentifier,
+        slotNumber:      s.slotNumber,
+        status:          s.status,
+        bookedBy:        s.bookedBy,
+        vehicleNumber:   s.vehicleNumber,
+        bookedAt:        s.bookedAt
+      }))
+    );
+
+    // 5) Return both arrays
+    return res.json({ carSlots, bikeSlots });
+  } catch (err) {
+    console.error('getAllSlots error:', err);
+    return res
+      .status(500)
+      .json({ message: 'Error fetching all slots', error: err.message });
+  }
+};
 
 // PATCH /api/slots/book
 

@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   bikeNumber: String,
   wallet: {
     balance: { type: Number, default: 0 }
-  }
+  },
+  isParked: { type: Boolean, default: false }   // ← new field
 });
-
 module.exports = mongoose.model('User', userSchema);

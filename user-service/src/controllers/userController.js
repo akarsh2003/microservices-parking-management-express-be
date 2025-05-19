@@ -51,31 +51,105 @@ exports.getSlots = async (req, res) => {
 
 
 // Book a slot (slotId in URL param)
+// src/controllers/userController.js
+
 exports.bookSlot = async (req, res) => {
   try {
-    const { id } = req.params; // slot ID in URL
-    const response = await axios.patch(`http://localhost:3001/api/organization/slots/${id}/book`, {
-      userId: req.userId, // passed to update bookedBy in org service
-    });
-    res.status(response.status).json(response.data);
+    const { userId } = req.params;               // from URL: /book/:userId
+    const { type }   = req.body;                 // expect { type: 'car' } or { type: 'bike' }
+    
+    // 1) validate type
+    if (!['car', 'bike'].includes(type)) {
+      return res
+        .status(400)
+        .json({ message: 'Invalid vehicle type; must be "car" or "bike".' });
+    }
+
+    // 2) fetch & validate user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // 3) check if vehicle number is on file
+    const vehicleNumber = type === 'car' ? user.carNumber : user.bikeNumber;
+    if (!vehicleNumber) {
+      return res
+        .status(400)
+        .json({ message: `No ${type} number on file for this user.` });
+    }
+
+    // 4) ensure no active parking
+    if (user.isParked) {
+      return res
+        .status(400)
+        .json({ message: 'A vehicle is already parked.' });
+    }
+
+    // 5) require at least ₹50 in wallet
+    if (user.wallet.balance < 50) {
+      return res
+        .status(400)
+        .json({ message: 'Insufficient balance; minimum ₹50 required.' });
+    }
+
+    // 6) mark as parked
+    user.isParked = true;
+    await user.save();
+
+    return res
+      .status(200)
+      .json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} parked successfully!` });
   } catch (err) {
-    console.error('Booking Error:', err.message);
-    const status = err.response?.status || 500;
-    const message = err.response?.data?.message || 'Booking failed';
-    res.status(status).json({ message, error: err.message });
+    console.error('Booking Error:', err);
+    return res
+      .status(500)
+      .json({ message: 'Booking failed', error: err.message });
   }
 };
 
 // Exit a slot (slotId in URL param)
 exports.exitSlot = async (req, res) => {
   try {
-    const { id } = req.params;
-    const response = await axios.patch(`http://localhost:3001/api/organization/slots/${id}/exit`);
-    res.status(response.status).json(response.data);
+    const {userId} = req.params;
+    const { price } = req.body;
+    if (typeof price !== 'number') {
+      return res
+        .status(400)
+        .json({ message: 'Exit price must be provided as a number' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (!user.isParked) {
+      return res
+        .status(400)
+        .json({ message: 'No vehicle currently parked' });
+    }
+
+    if (user.wallet.balance < price) {
+      return res
+        .status(400)
+        .json({ message: 'Insufficient balance for exit charge' });
+    }
+
+    user.wallet.balance -= price;
+    user.isParked = false;
+    await user.save();
+
+    return res
+      .status(200)
+      .json({
+        message: 'Exit successful',
+        balance: user.wallet.balance
+      });
   } catch (err) {
-    console.error('Exit Error:', err.message);
-    const status = err.response?.status || 500;
-    const message = err.response?.data?.message || 'Exit failed';
-    res.status(status).json({ message, error: err.message });
+    console.error('Exit Error:', err);
+    return res
+      .status(500)
+      .json({ message: 'Exit failed', error: err.message });
   }
 };

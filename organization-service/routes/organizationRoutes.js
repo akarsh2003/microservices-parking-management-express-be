@@ -20,7 +20,11 @@ router.get('/organizations', controller.getAllOrganizations);//admin only
 router.put('/organizations/approve/:id', controller.approveOrganization);//admin only
 router.put('/organizations/reject/:id', controller.rejectOrganization);//admin only
 
-router.get('/slots/available', controller.getAvailableSlots);//user
+// router.get('/slots/available', controller.getAvailableSlots);//user
+
+router.get('/:orgId/slots/available', controller.getAvailableSlots);
+router.get('/:orgId/slots/all', controller.getAllSlots);
+
 router.patch('/slots/book', controller.markSlotAsBooked);//user
 router.patch('/slots/exit', controller.markSlotAsAvailable);//user
 router.get('/org', controller.getAllOrganizationsForUser);//user
